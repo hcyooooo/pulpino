@@ -85,18 +85,9 @@ if {$RISCY_RV32F != 0} {
 
 set script_dir [file dirname [file normalize [info script]]]
 set repo_root  [file normalize [file join $script_dir ..]]
-set legacy_dir [file normalize [file join $repo_root fpga pulpino]]
 
 proc repo_path {path} {
   return [file normalize [file join $::repo_root $path]]
-}
-
-proc normalize_legacy_list {files} {
-  set out {}
-  foreach f $files {
-    lappend out [file normalize [file join $::legacy_dir $f]]
-  }
-  return $out
 }
 
 proc normalize_repo_list {files} {
@@ -183,11 +174,9 @@ endmodule
 }
 
 set xdc_path [file join $script_dir pulpino_150mhz.xdc]
+set sources_path [file join $script_dir pulpino_sources.tcl]
 assert_files_exist [list $xdc_path] "constraint"
-assert_files_exist [list \
-  [file join $legacy_dir tcl ips_src_files.tcl] \
-  [file join $legacy_dir tcl src_files.tcl] \
-] "legacy source-list"
+assert_files_exist [list $sources_path] "source-list"
 
 set out_dir $opts(-out_dir)
 if {[file pathtype $out_dir] ne "absolute"} {
@@ -203,64 +192,23 @@ file mkdir $reports_dir
 file mkdir $checkpoints_dir
 file mkdir $helpers_dir
 
-set old_cwd [pwd]
-cd $legacy_dir
-source [file join $legacy_dir tcl ips_src_files.tcl]
-source [file join $legacy_dir tcl src_files.tcl]
-cd $old_cwd
-
-set common_groups [list \
-  $SRC_AXI_NODE \
-  $SRC_APB_NODE \
-  $SRC_AXI_MEM_IF_DP \
-  $SRC_AXI_SPI_SLAVE \
-  $SRC_AXI_SPI_MASTER \
-  $SRC_APB_UART_SV \
-  $SRC_APB_GPIO \
-  $SRC_APB_EVENT_UNIT \
-  $SRC_APB_SPI_MASTER \
-  $SRC_FPU \
-  $SRC_APB_PULPINO \
-  $SRC_APB_FLL_IF \
-  $SRC_CORE2AXI \
-  $SRC_APB_TIMER \
-  $SRC_AXI2APB \
-  $SRC_APB_I2C \
-  $SRC_AXI_SLICE_DC \
-  $SRC_APB_UART \
-  $SRC_AXI_SLICE \
-  $SRC_ADV_DBG_IF \
-  $SRC_APB2PER \
-  $SRC_COMPONENTS \
-  $SRC_PULPINO \
-]
+source $sources_path
 
 if {$USE_ZERO_RISCY == 0} {
-  set core_groups [list $SRC_RISCV $SRC_RISCV_REGFILE_FPGA]
+  set core_files $PULPINO_RISCV_FILES
   set core_name "ri5cy"
 } else {
-  set core_groups [list $SRC_ZERORISCY $SRC_ZERORISCY_REGFILE_FPGA]
+  set core_files $PULPINO_ZERO_RISCY_FILES
   set core_name "zero-riscy"
 }
 
 set source_files {}
-foreach group [concat $common_groups $core_groups] {
-  foreach f [normalize_legacy_list $group] {
-    lappend source_files $f
-  }
+foreach f [concat $PULPINO_COMMON_FILES $core_files] {
+  lappend source_files [repo_path $f]
 }
 set source_files [unique_ordered $source_files]
 
-set include_dirs [normalize_repo_list [list \
-  rtl/includes \
-  ips/axi/axi_node \
-  ips/apb/apb_event_unit/include \
-  ips/fpu \
-  ips/apb/apb_i2c \
-  ips/zero-riscy/include \
-  ips/riscv/include \
-  ips/adv_dbg_if/rtl \
-]]
+set include_dirs [normalize_repo_list $PULPINO_INCLUDE_DIRS]
 
 assert_files_exist $source_files "HDL"
 assert_files_exist $include_dirs "include-directory"
