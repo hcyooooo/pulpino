@@ -103,10 +103,24 @@ proc normalize_repo_list {files} {
 }
 
 proc assert_files_exist {files what} {
+  set missing {}
   foreach f $files {
     if {![file exists $f]} {
-      fail "Missing $what file: $f"
+      lappend missing $f
     }
+  }
+  if {[llength $missing] > 0} {
+    set msg "Missing [llength $missing] $what file(s). First missing paths:"
+    foreach f [lrange $missing 0 19] {
+      append msg "\n  $f"
+    }
+    if {[llength $missing] > 20} {
+      append msg "\n  ... plus [expr {[llength $missing] - 20}] more"
+    }
+    if {$what eq "HDL"} {
+      append msg "\nThe Windows source tree is probably incomplete. Sync the repository RTL/IP directories, especially ips/, from a complete PULPino checkout."
+    }
+    fail $msg
   }
 }
 
@@ -138,6 +152,30 @@ proc split_hdl_files {files sv_var vhdl_var} {
       fail "Unknown HDL extension for file: $f"
     }
   }
+}
+
+proc resolve_part {part} {
+  if {[llength [get_parts -quiet $part]] > 0} {
+    return $part
+  }
+
+  set candidates {}
+  if {![regexp -- {-[a-zA-Z]$} $part]} {
+    lappend candidates "${part}-e" "${part}-i"
+  }
+  foreach candidate $candidates {
+    if {[llength [get_parts -quiet $candidate]] > 0} {
+      puts "INFO: Requested part '$part' is not installed as an exact Vivado part name; using '$candidate'."
+      return $candidate
+    }
+  }
+
+  set msg "Invalid part specified: '$part'."
+  if {[llength $candidates] > 0} {
+    append msg " Also tried: [join $candidates {, }]."
+  }
+  append msg " In Vivado Tcl, run: get_parts *xczu9eg*ffvb1156*"
+  fail $msg
 }
 
 proc write_inferred_bram_helper {path} {
@@ -221,7 +259,6 @@ split_hdl_files $source_files sv_files vhdl_files
 
 puts "=== PULPino 150 MHz timing repro ==="
 puts "Repo root : $repo_root"
-puts "Part      : $opts(-part)"
 puts "Top       : $opts(-top)"
 puts "Clock     : clk"
 puts "Period    : $opts(-period) ns"
@@ -232,7 +269,9 @@ puts "SV/Verilog files: [llength $sv_files]"
 puts "VHDL files      : [llength $vhdl_files]"
 
 cd $out_dir
-set_part $opts(-part)
+set resolved_part [resolve_part $opts(-part)]
+puts "Part      : $resolved_part"
+set_part $resolved_part
 
 if {[llength $vhdl_files] > 0} {
   puts "Reading VHDL files..."
@@ -251,7 +290,7 @@ read_xdc $xdc_path
 puts "Running synthesis..."
 synth_design \
   -top $opts(-top) \
-  -part $opts(-part) \
+  -part $resolved_part \
   -generic USE_ZERO_RISCY=$USE_ZERO_RISCY \
   -generic RISCY_RV32F=$RISCY_RV32F \
   -generic ZERO_RV32M=$ZERO_RV32M \

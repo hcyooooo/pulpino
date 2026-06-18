@@ -53,6 +53,12 @@ You can also run the Tcl directly:
 vivado -mode batch -source vivado_repro\run_pulpino_150mhz.tcl -tclargs -part xczu9eg-ffvb1156-2 -period 6.667 -mode impl
 ```
 
+## Source Tree Completeness
+
+This flow needs the PULPino IP RTL under `ips/`, for example `ips/axi/axi_node/apb_regs_top.sv`, `ips/riscv/riscv_core.sv`, and `ips/adv_dbg_if/rtl/adbg_top.sv`.
+
+The upstream PULPino `update-ips.py` script is Python 2 code. A Windows install where `python --version` reports Python 3.x will not run that script without porting it or installing Python 2. For this repro, the simplest fix is to copy/sync the complete `ips/` directory from a known-good PULPino checkout rather than using `update-ips.py` on Windows.
+
 ## Reports
 
 Outputs go to `vivado_repro/out` by default:
@@ -70,7 +76,8 @@ For the 150 MHz check, use the post-route timing summary. The design meets this 
 Use these settings for the Karl-style experiment:
 
 - Vivado: 2020.2 recommended
-- FPGA part: `xczu9eg-ffvb1156-2`
+- FPGA part/speed grade: `xczu9eg-ffvb1156-2`
+- Vivado full part name is commonly `xczu9eg-ffvb1156-2-e`; the script accepts the shorter `xczu9eg-ffvb1156-2` and will try `-e` / `-i` if the exact short name is not in the installed part database
 - Main clock period: `6.667 ns`
 - Mode: `impl`, because post-route WNS/TNS is the meaningful timing result
 
