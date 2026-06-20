@@ -273,9 +273,9 @@ cd $out_dir
 set resolved_part [resolve_part $opts(-part)]
 puts "Part      : $resolved_part"
 
-# Vivado 2020.2 installs can differ in read_verilog option support.  Use an
-# in-memory project only to carry include directories and defines; this still
+# Use an in-memory project to carry include directories and defines; this still
 # avoids creating a disk .xpr project.
+set hdl_defines {PULP_FPGA_EMUL RISCV}
 if {[catch {current_project}]} {
   create_project -in_memory pulpino_repro -part $resolved_part
 } else {
@@ -286,7 +286,7 @@ if {![catch {current_project} cur_project]} {
 }
 if {![catch {current_fileset} cur_fileset]} {
   set_property include_dirs $include_dirs $cur_fileset
-  set_property verilog_define {PULP_FPGA_EMUL RISCV} $cur_fileset
+  set_property verilog_define $hdl_defines $cur_fileset
 } else {
   fail "Vivado did not provide a current fileset for include_dirs/verilog_define setup."
 }
@@ -297,13 +297,8 @@ if {[llength $vhdl_files] > 0} {
 }
 
 puts "Reading SystemVerilog/Verilog files..."
-if {[catch {read_verilog -sv -define {PULP_FPGA_EMUL RISCV} $sv_files} read_error]} {
-  if {[string match {*Unknown option '-define'*} $read_error]} {
-    puts "WARNING: read_verilog does not accept -define in this Vivado install; using fileset verilog_define property only."
-    read_verilog -sv $sv_files
-  } else {
-    fail "read_verilog failed: $read_error"
-  }
+if {[catch {read_verilog -sv $sv_files} read_error]} {
+  fail "read_verilog failed: $read_error"
 }
 
 set ::PULPINO_CLOCK_PERIOD $opts(-period)
@@ -320,6 +315,9 @@ synth_design \
   -generic RISCY_RV32F=$RISCY_RV32F \
   -generic ZERO_RV32M=$ZERO_RV32M \
   -generic ZERO_RV32E=$ZERO_RV32E \
+  -include_dirs $include_dirs \
+  -verilog_define PULP_FPGA_EMUL=1 \
+  -verilog_define RISCV \
   -flatten_hierarchy full \
   -gated_clock_conversion on
 
