@@ -175,6 +175,7 @@ proc resolve_part {part} {
     append msg " Also tried: [join $candidates {, }]."
   }
   append msg " In Vivado Tcl, run: get_parts *xczu9eg*ffvb1156*"
+  append msg " If that returns no matches, install Zynq UltraScale+ MPSoC/XCZU9EG device support in Vivado, or use an installed part only for script debugging."
   fail $msg
 }
 
@@ -271,7 +272,24 @@ puts "VHDL files      : [llength $vhdl_files]"
 cd $out_dir
 set resolved_part [resolve_part $opts(-part)]
 puts "Part      : $resolved_part"
-set_part $resolved_part
+
+# Vivado 2020.2 installs can differ in read_verilog option support.  Use an
+# in-memory project only to carry include directories and defines; this still
+# avoids creating a disk .xpr project.
+if {[catch {current_project}]} {
+  create_project -in_memory pulpino_repro -part $resolved_part
+} else {
+  set_part $resolved_part
+}
+if {![catch {current_project} cur_project]} {
+  catch {set_property source_mgmt_mode None $cur_project}
+}
+if {![catch {current_fileset} cur_fileset]} {
+  set_property include_dirs $include_dirs $cur_fileset
+  set_property verilog_define {PULP_FPGA_EMUL RISCV} $cur_fileset
+} else {
+  fail "Vivado did not provide a current fileset for include_dirs/verilog_define setup."
+}
 
 if {[llength $vhdl_files] > 0} {
   puts "Reading VHDL files..."
@@ -279,7 +297,14 @@ if {[llength $vhdl_files] > 0} {
 }
 
 puts "Reading SystemVerilog/Verilog files..."
-read_verilog -sv -include_dirs $include_dirs -define {PULP_FPGA_EMUL RISCV} $sv_files
+if {[catch {read_verilog -sv -define {PULP_FPGA_EMUL RISCV} $sv_files} read_error]} {
+  if {[string match {*Unknown option '-define'*} $read_error]} {
+    puts "WARNING: read_verilog does not accept -define in this Vivado install; using fileset verilog_define property only."
+    read_verilog -sv $sv_files
+  } else {
+    fail "read_verilog failed: $read_error"
+  }
+}
 
 set ::PULPINO_CLOCK_PERIOD $opts(-period)
 set ::PULPINO_CLOCK_PORT clk

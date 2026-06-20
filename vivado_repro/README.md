@@ -59,6 +59,16 @@ This flow needs the PULPino IP RTL under `ips/`, for example `ips/axi/axi_node/a
 
 The upstream PULPino `update-ips.py` script is Python 2 code. A Windows install where `python --version` reports Python 3.x will not run that script without porting it or installing Python 2. For this repro, the simplest fix is to copy/sync the complete `ips/` directory from a known-good PULPino checkout rather than using `update-ips.py` on Windows.
 
+## Vivado Part Support
+
+If Vivado reports `Invalid part specified` for `xczu9eg-ffvb1156-2-e`, check the installed device database:
+
+```tcl
+get_parts *xczu9eg*ffvb1156*
+```
+
+If this returns no matches, the installed Vivado device set does not include the target Zynq UltraScale+ MPSoC/XCZU9EG device. Add the Zynq UltraScale+ MPSoC device support with the Vivado 2020.2 installer, or use another installed part only to debug the Tcl flow. Timing results from another part are not comparable to the Karl-style `xczu9eg-ffvb1156-2` target.
+
 ## Reports
 
 Outputs go to `vivado_repro/out` by default:
